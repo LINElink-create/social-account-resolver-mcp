@@ -17,7 +17,7 @@ from tencentcloud.ocr.v20181119 import models, ocr_client
 from . import database
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(PROJECT_ROOT / ".env", encoding="utf-8-sig")
 
 DEFAULT_BATCH_LIMIT = int(os.getenv("OCR_BATCH_LIMIT", "5"))
 OCR_ENDPOINT = "ocr.tencentcloudapi.com"

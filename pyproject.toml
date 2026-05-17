@@ -12,6 +12,7 @@ dependencies = [
   "pymongo>=4.17.0",
   "python-dotenv>=1.2.0",
   "rapidfuzz>=3.14.0",
+  "selenium>=4.44.0",
   "tencentcloud-sdk-python>=3.1.89",
 ]
 
@@ -19,7 +20,7 @@ dependencies = [
 social-account-resolver-mcp = "server:main"
 
 [tool.setuptools]
-py-modules = ["server", "test_ocr_flow"]
+py-modules = ["server", "test_ocr_flow", "login_xhs_edge", "login_xhs_browser"]
 packages = ["tools"]
 
 [tool.pyright]

@@ -8,8 +8,13 @@ from .bilibili import search_bilibili_user
 from .fydmwd import search_fydmwd_account
 from .scorer import score_account_match
 from .weibo import search_weibo_user
+from .xiaohongshu import (
+    enqueue_xiaohongshu_search,
+    search_xiaohongshu_cached_user,
+    search_xiaohongshu_user,
+)
 
-DEFAULT_PLATFORMS = ["bilibili", "weibo", "douyin", "kuaishou"]
+DEFAULT_PLATFORMS = ["bilibili", "weibo", "douyin", "kuaishou", "xiaohongshu"]
 FYDMWD_PLATFORMS = {"douyin", "kuaishou"}
 
 
@@ -34,11 +39,16 @@ def _search_source(
     limit: int,
     force_refresh: bool,
     fydmwd_platforms: list[str] | None = None,
+    realtime_xiaohongshu: bool = False,
 ) -> dict[str, Any]:
     if source_name == "bilibili":
         return search_bilibili_user(person_name, aliases, limit, force_refresh)
     if source_name == "weibo":
         return search_weibo_user(person_name, aliases, limit, force_refresh)
+    if source_name == "xiaohongshu":
+        if realtime_xiaohongshu:
+            return search_xiaohongshu_user(person_name, aliases, limit, force_refresh)
+        return search_xiaohongshu_cached_user(person_name, aliases, limit)
     if source_name == "fydmwd":
         return search_fydmwd_account(
             person_name,
@@ -59,6 +69,8 @@ def resolve_person_social_accounts(
     save_candidates: bool = False,
     category: str | None = None,
     negative_keywords: list[str] | None = None,
+    realtime_xiaohongshu: bool = False,
+    enqueue_xiaohongshu: bool = True,
 ) -> dict[str, Any]:
     platform_scope = platforms or DEFAULT_PLATFORMS
     platform_scope = [platform.lower() for platform in platform_scope]
@@ -93,6 +105,9 @@ def resolve_person_social_accounts(
         source_jobs.append(("bilibili", None))
     if "weibo" in platform_scope:
         source_jobs.append(("weibo", None))
+    include_xiaohongshu = "xiaohongshu" in platform_scope
+    if include_xiaohongshu and realtime_xiaohongshu:
+        source_jobs.append(("xiaohongshu", None))
 
     fydmwd_scope = [platform for platform in platform_scope if platform in FYDMWD_PLATFORMS]
     if fydmwd_scope:
@@ -109,6 +124,7 @@ def resolve_person_social_accounts(
                 limit_per_source,
                 force_refresh,
                 fydmwd_platforms,
+                realtime_xiaohongshu,
             ): source_name
             for source_name, fydmwd_platforms in source_jobs
         }
@@ -123,6 +139,25 @@ def resolve_person_social_accounts(
                     "results": [],
                     "errors": [str(exc)],
                 }
+
+    queued_tasks: list[dict[str, Any]] = []
+    if include_xiaohongshu and not realtime_xiaohongshu:
+        cached_xhs = search_xiaohongshu_cached_user(
+            person_name,
+            aliases=aliases,
+            limit=limit_per_source,
+        )
+        searches["xiaohongshu"] = cached_xhs
+        if not cached_xhs.get("results") and enqueue_xiaohongshu:
+            queued = enqueue_xiaohongshu_search(
+                person_name,
+                aliases=aliases,
+                limit=limit_per_source,
+                category=category,
+            )
+            queued_tasks.append(queued["task"])
+            searches["xiaohongshu"]["queued"] = True
+            searches["xiaohongshu"]["queued_task_id"] = queued["task"].get("_id")
 
     candidates: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
@@ -171,6 +206,8 @@ def resolve_person_social_accounts(
             "count": len(search_result.get("results", []) or []),
             "query_source": search_result.get("query_source"),
             "errors": search_result.get("errors", []) or [],
+            "queued": bool(search_result.get("queued")),
+            "queued_task_id": search_result.get("queued_task_id"),
         }
         for source_name, search_result in searches.items()
     }
@@ -186,5 +223,6 @@ def resolve_person_social_accounts(
         "results": candidates[:result_limit],
         "saved_count": len(saved_accounts),
         "saved_accounts": saved_accounts,
+        "queued_tasks": queued_tasks,
         "errors": errors,
     }

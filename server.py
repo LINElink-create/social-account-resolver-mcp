@@ -22,9 +22,12 @@ from tools.webpage import collect_page_images as webpage_collect_images
 from tools.webpage import fetch_webpage as webpage_fetch
 from tools.webpage import filter_image_candidates as webpage_filter_images
 from tools.weibo import search_weibo_user as weibo_search
+from tools.xiaohongshu import enqueue_xiaohongshu_search as enqueue_xhs_search
+from tools.xiaohongshu import run_xiaohongshu_worker as run_xhs_worker
+from tools.xiaohongshu import search_xiaohongshu_user as xiaohongshu_search
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(PROJECT_ROOT / ".env", encoding="utf-8-sig")
 
 mcp = FastMCP(
     "social-account-resolver-mcp",
@@ -72,6 +75,17 @@ def search_weibo_user(
 
 
 @mcp.tool()
+def search_xiaohongshu_user(
+    person_name: str,
+    aliases: list[str] | None = None,
+    limit: int = 10,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    """Search Xiaohongshu user candidates with MongoDB cache checks first."""
+    return xiaohongshu_search(person_name, aliases, limit, force_refresh)
+
+
+@mcp.tool()
 def search_fydmwd_account(
     keyword: str,
     platforms: list[str] | None = None,
@@ -93,6 +107,8 @@ def resolve_person_social_accounts(
     save_candidates: bool = False,
     category: str | None = None,
     negative_keywords: list[str] | None = None,
+    realtime_xiaohongshu: bool = False,
+    enqueue_xiaohongshu: bool = True,
 ) -> dict[str, Any]:
     """Search all requested platforms, score candidates, and optionally save them."""
     try:
@@ -106,6 +122,8 @@ def resolve_person_social_accounts(
             save_candidates=save_candidates,
             category=category,
             negative_keywords=negative_keywords,
+            realtime_xiaohongshu=realtime_xiaohongshu,
+            enqueue_xiaohongshu=enqueue_xiaohongshu,
         )
     except Exception as exc:
         return {"ok": False, "query": person_name, "error": str(exc), "results": []}
@@ -208,6 +226,29 @@ def parse_bilibili_show_event(
         return parse_show_event(url_or_project_id, image_limit, filter_images)
     except Exception as exc:
         return {"ok": False, "url_or_project_id": url_or_project_id, "error": str(exc)}
+
+
+@mcp.tool()
+def enqueue_xiaohongshu_search(
+    person_name: str,
+    aliases: list[str] | None = None,
+    limit: int = 10,
+    category: str | None = None,
+) -> dict[str, Any]:
+    """Queue a low-frequency Xiaohongshu search task for the background worker."""
+    try:
+        return enqueue_xhs_search(person_name, aliases, limit, category)
+    except Exception as exc:
+        return {"ok": False, "person_name": person_name, "error": str(exc)}
+
+
+@mcp.tool()
+def run_xiaohongshu_worker(limit: int = 3) -> dict[str, Any]:
+    """Run pending Xiaohongshu search tasks and persist discovered candidates."""
+    try:
+        return run_xhs_worker(limit)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "results": []}
 
 
 @mcp.tool()

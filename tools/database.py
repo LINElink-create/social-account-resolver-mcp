@@ -14,7 +14,7 @@ from pymongo.collection import Collection
 from pymongo.database import Database
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(PROJECT_ROOT / ".env", encoding="utf-8-sig")
 
 
 @dataclass(frozen=True)
@@ -123,6 +123,7 @@ def ensure_indexes() -> dict[str, Any]:
 
     resolution_tasks().create_index([("status", ASCENDING), ("created_at", ASCENDING)])
     resolution_tasks().create_index([("person_name", ASCENDING)])
+    resolution_tasks().create_index([("task_type", ASCENDING), ("status", ASCENDING)])
 
     search_queries().create_index([("platform", ASCENDING), ("keyword", ASCENDING)])
     search_queries().create_index([("expires_at", ASCENDING)])
@@ -281,6 +282,115 @@ def save_search_result(
     }
     search_queries().insert_one(doc)
     return serialize(doc)
+
+
+def find_recent_resolution_task(
+    person_name: str,
+    task_type: str,
+    platform_scope: list[str] | None = None,
+    statuses: list[str] | tuple[str, ...] | None = ("pending", "running"),
+    cooldown_seconds: int | None = None,
+) -> dict[str, Any] | None:
+    query: dict[str, Any] = {
+        "person_name": person_name.strip(),
+        "task_type": task_type,
+    }
+    if statuses:
+        query["status"] = {"$in": list(statuses)}
+    if platform_scope:
+        query["platform_scope"] = list(platform_scope)
+    if cooldown_seconds:
+        query["created_at"] = {"$gt": utc_now() - timedelta(seconds=cooldown_seconds)}
+    doc = resolution_tasks().find_one(query, sort=[("created_at", -1)])
+    return serialize(doc) if doc else None
+
+
+def enqueue_resolution_task(
+    person_name: str,
+    platform_scope: list[str],
+    task_type: str,
+    payload: dict[str, Any] | None = None,
+    dedupe: bool = True,
+    cooldown_seconds: int | None = None,
+) -> dict[str, Any]:
+    if dedupe:
+        existing = find_recent_resolution_task(
+            person_name,
+            task_type,
+            platform_scope,
+            statuses=("pending", "running", "done", "failed"),
+            cooldown_seconds=cooldown_seconds,
+        )
+        if existing:
+            return {**existing, "deduped": True}
+
+    now = utc_now()
+    doc = {
+        "_id": make_id("task"),
+        "person_name": person_name.strip(),
+        "platform_scope": list(platform_scope),
+        "task_type": task_type,
+        "status": "pending",
+        "result_summary": {},
+        "payload": payload or {},
+        "error": None,
+        "created_at": now,
+        "updated_at": now,
+        "finished_at": None,
+    }
+    resolution_tasks().insert_one(doc)
+    return {**serialize(doc), "deduped": False}
+
+
+def claim_resolution_tasks(
+    task_type: str,
+    limit: int = 3,
+) -> list[dict[str, Any]]:
+    now = utc_now()
+    claimed: list[dict[str, Any]] = []
+    for doc in (
+        resolution_tasks()
+        .find({"task_type": task_type, "status": "pending"})
+        .sort("created_at", 1)
+        .limit(limit)
+    ):
+        result = resolution_tasks().find_one_and_update(
+            {"_id": doc["_id"], "status": "pending"},
+            {
+                "$set": {
+                    "status": "running",
+                    "started_at": now,
+                    "updated_at": now,
+                }
+            },
+            return_document=True,
+        )
+        if result:
+            claimed.append(serialize(result))
+    return claimed
+
+
+def finish_resolution_task(
+    task_id: str,
+    result_summary: dict[str, Any],
+    status: str = "done",
+    error: str | None = None,
+) -> dict[str, Any] | None:
+    now = utc_now()
+    resolution_tasks().update_one(
+        {"_id": task_id},
+        {
+            "$set": {
+                "status": status,
+                "result_summary": result_summary,
+                "error": error,
+                "finished_at": now,
+                "updated_at": now,
+            }
+        },
+    )
+    doc = resolution_tasks().find_one({"_id": task_id})
+    return serialize(doc) if doc else None
 
 
 def upsert_candidate_account(
