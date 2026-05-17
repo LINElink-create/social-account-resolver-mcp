@@ -82,7 +82,7 @@ def score_account_match(
             "nickname",
             nickname,
             source,
-            "昵称完全一致",
+            "nickname exact match",
             url,
         )
     elif primary_name and nickname:
@@ -96,7 +96,7 @@ def score_account_match(
                 "nickname",
                 nickname,
                 source,
-                "昵称高度相似",
+                "nickname fuzzy match",
                 url,
             )
 
@@ -110,7 +110,7 @@ def score_account_match(
                 "nickname",
                 alias,
                 source,
-                "别名匹配",
+                "alias match",
                 url,
             )
             break
@@ -125,7 +125,7 @@ def score_account_match(
                 "bio",
                 name,
                 source,
-                "简介关键词匹配",
+                "bio keyword match",
                 url,
             )
             break
@@ -140,7 +140,7 @@ def score_account_match(
                 "verified_reason",
                 name,
                 source,
-                "账号认证信息匹配",
+                "verification info match",
                 url,
             )
             break
@@ -155,7 +155,7 @@ def score_account_match(
             "followers",
             followers,
             source,
-            "粉丝量/账号活跃度有可参考数据",
+            "followers or activity data available",
             url,
         )
 
@@ -171,7 +171,7 @@ def score_account_match(
             "nickname",
             nickname,
             source,
-            "短昵称或同名风险较高",
+            "short name or same-name risk",
             url,
         )
 
@@ -186,7 +186,7 @@ def score_account_match(
                 "bio",
                 keyword_text,
                 source,
-                "简介内容冲突",
+                "bio content conflict",
                 url,
             )
 

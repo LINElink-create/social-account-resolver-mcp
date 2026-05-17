@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from typing import Any
 
 import httpx
@@ -115,27 +116,65 @@ def search_bilibili_user(
         return cached
 
     errors = cached.get("errors", []) if cached else []
+    payload: dict[str, Any] | None = None
+    last_error: Exception | None = None
+    header_profiles = [
+        {
+            "User-Agent": "Mozilla/5.0",
+            "Referer": "https://search.bilibili.com/",
+            "Accept": "application/json, text/plain, */*",
+        },
+        {
+            "User-Agent": "Mozilla/5.0",
+            "Referer": "https://www.bilibili.com/",
+            "Accept": "application/json, text/plain, */*",
+        },
+        {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Referer": "https://search.bilibili.com/upuser",
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://search.bilibili.com",
+        },
+    ]
     try:
-        with httpx.Client(
-            timeout=DEFAULT_TIMEOUT_SECONDS,
-            follow_redirects=True,
-            headers={
-                "User-Agent": "Mozilla/5.0",
-                "Referer": "https://search.bilibili.com/",
-                "Accept": "application/json, text/plain, */*",
-            },
-        ) as client:
-            response = client.get(
-                BILIBILI_SEARCH_URL,
-                params={
+        base_params = {
                     "search_type": "bili_user",
                     "keyword": person_name,
                     "page": 1,
-                    "order": "totalrank",
-                },
-            )
-            response.raise_for_status()
-            payload = response.json()
+        }
+        for headers in header_profiles:
+            if payload is not None:
+                break
+            with httpx.Client(
+                timeout=DEFAULT_TIMEOUT_SECONDS,
+                follow_redirects=True,
+                headers=headers,
+            ) as client:
+                for order in ("fans", "totalrank", None):
+                    params = dict(base_params)
+                    if order:
+                        params["order"] = order
+                    try:
+                        response = client.get(BILIBILI_SEARCH_URL, params=params)
+                        response.raise_for_status()
+                        candidate_payload = response.json()
+                        if candidate_payload.get("code") not in (0, "0", None):
+                            raise RuntimeError(
+                                f"Bilibili API code={candidate_payload.get('code')}: "
+                                f"{candidate_payload.get('message')}"
+                            )
+                        result_items = (
+                            candidate_payload.get("data", {}).get("result", []) or []
+                        )
+                        payload = candidate_payload
+                        if result_items:
+                            break
+                    except Exception as exc:
+                        last_error = exc
+                        time.sleep(0.2)
+                        continue
+        if payload is None and last_error:
+            raise last_error
     except Exception as exc:
         errors.append(f"Bilibili live search failed: {exc}")
         try:

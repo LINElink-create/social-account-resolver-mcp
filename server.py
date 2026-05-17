@@ -8,10 +8,12 @@ from mcp.server.fastmcp import FastMCP
 
 from tools import database
 from tools.bilibili import search_bilibili_user as bilibili_search
+from tools.event_parser import parse_bilibili_show_event as parse_show_event
 from tools.fydmwd import search_fydmwd_account as fydmwd_search
 from tools.ocr import general_basic_ocr_image_url as tencent_ocr_image_url
 from tools.ocr import run_ocr_for_image_task as ocr_image_task
 from tools.ocr import run_pending_ocr_tasks as ocr_pending_tasks
+from tools.resolver import resolve_person_social_accounts as resolve_accounts
 from tools.scorer import score_account_match as score_match
 from tools.webpage import (
     collect_and_filter_page_images as webpage_collect_and_filter_images,
@@ -78,6 +80,35 @@ def search_fydmwd_account(
 ) -> dict[str, Any]:
     """Search FYDMWD for Douyin/Kuaishou candidates with MongoDB cache checks first."""
     return fydmwd_search(keyword, platforms, limit, force_refresh)
+
+
+@mcp.tool()
+def resolve_person_social_accounts(
+    person_name: str,
+    aliases: list[str] | None = None,
+    platforms: list[str] | None = None,
+    limit_per_source: int = 10,
+    result_limit: int = 20,
+    force_refresh: bool = False,
+    save_candidates: bool = False,
+    category: str | None = None,
+    negative_keywords: list[str] | None = None,
+) -> dict[str, Any]:
+    """Search all requested platforms, score candidates, and optionally save them."""
+    try:
+        return resolve_accounts(
+            person_name=person_name,
+            aliases=aliases,
+            platforms=platforms,
+            limit_per_source=limit_per_source,
+            result_limit=result_limit,
+            force_refresh=force_refresh,
+            save_candidates=save_candidates,
+            category=category,
+            negative_keywords=negative_keywords,
+        )
+    except Exception as exc:
+        return {"ok": False, "query": person_name, "error": str(exc), "results": []}
 
 
 @mcp.tool()
@@ -164,6 +195,19 @@ def collect_and_filter_page_images(
         )
     except Exception as exc:
         return {"ok": False, "url": url, "error": str(exc), "images": [], "rejected": []}
+
+
+@mcp.tool()
+def parse_bilibili_show_event(
+    url_or_project_id: str,
+    image_limit: int = 100,
+    filter_images: bool = True,
+) -> dict[str, Any]:
+    """Parse a Bilibili show detail page into structured event data."""
+    try:
+        return parse_show_event(url_or_project_id, image_limit, filter_images)
+    except Exception as exc:
+        return {"ok": False, "url_or_project_id": url_or_project_id, "error": str(exc)}
 
 
 @mcp.tool()
