@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: social-account-resolver-mcp
+Version: 0.1.0
+Summary: MCP server for resolving public social-account candidates across platforms.
+Requires-Python: >=3.11
+Requires-Dist: beautifulsoup4>=4.14.0
+Requires-Dist: httpx>=0.28.0
+Requires-Dist: lxml>=6.0.0
+Requires-Dist: mcp>=1.27.0
+Requires-Dist: pydantic>=2.13.0
+Requires-Dist: pymongo>=4.17.0
+Requires-Dist: python-dotenv>=1.2.0
+Requires-Dist: rapidfuzz>=3.14.0
+Requires-Dist: tencentcloud-sdk-python>=3.1.89
