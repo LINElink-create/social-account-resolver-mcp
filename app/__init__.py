@@ -1,0 +1,1 @@
+"""Xiaohongshu-focused MCP application."""

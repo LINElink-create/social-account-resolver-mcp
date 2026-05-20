@@ -1,2 +1,3 @@
 [console_scripts]
-social-account-resolver-mcp = server:main
+legacy-social-account-resolver-mcp = server:main
+social-account-resolver-mcp = app.mcp_server:main
