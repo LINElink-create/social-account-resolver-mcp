@@ -1,7 +1,0 @@
-app
-login_xhs_browser
-login_xhs_edge
-login_xhs_playwright
-server
-test_ocr_flow
-tools
