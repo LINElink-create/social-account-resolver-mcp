@@ -274,7 +274,7 @@ MongoDB 健康检查：
 C:\Users\LINE\anaconda3\envs\CoserSearcher\python.exe -c "from tools.database import health_check; import json; print(json.dumps(health_check(), ensure_ascii=False, indent=2))"
 ```
 
-## MongoDB 集合
+## MongoDB Collections
 
 多平台集合：
 
@@ -331,4 +331,3 @@ C:\Users\LINE\anaconda3\envs\CoserSearcher\python.exe -c "from tools.database im
 - 小红书登录态保存在 `data/xhs-browser-profile/`。
 - 如果 `.env` 被覆盖，微博 Cookie 和腾讯 OCR 密钥需要重新填写。
 - 小红书服务器端运行可能受 IP 和 headless 环境影响，必要时可采用“本地 worker 写 MongoDB，服务器 MCP 读缓存”的部署方式。
-
